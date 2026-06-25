@@ -68,11 +68,11 @@ export function HomeTab({ todayTotal, weekTotal, settings, criptoRate }: Props) 
 
   // Cotizaciones clave
   const RATE_DISPLAY = [
-    { label: 'Cripto', labelKo: '크립토', casa: 'cripto'  },
-    { label: 'MEP',    labelKo: 'MEP',    casa: 'mep'     },
-    { label: 'Blue',   labelKo: '블루',   casa: 'blue'    },
-    { label: 'Oficial',labelKo: '공식',   casa: 'oficial' },
-    { label: 'Tarjeta',labelKo: '카드',   casa: 'tarjeta' },
+    { label: 'DolarApp', labelKo: '크립토', casa: 'cripto'  },
+    { label: 'MEP',      labelKo: 'MEP',    casa: 'bolsa'   },
+    { label: 'Blue',     labelKo: '블루',   casa: 'blue'    },
+    { label: 'Oficial',  labelKo: '공식',   casa: 'oficial' },
+    { label: 'Tarjeta',  labelKo: '카드',   casa: 'tarjeta' },
   ]
 
   // Meta de viaje
