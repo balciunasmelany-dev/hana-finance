@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CATEGORIES, IMPULSE_CATEGORIES } from '../constants/fixedExpenses'
 import { spawnConfetti } from '../components/PetalAnimation'
+import { ReceiptScanner } from '../components/ReceiptScanner'
 import type { Expense } from '../lib/supabase'
 
 type Props = {
@@ -32,6 +33,7 @@ export function ExpensesTab({ expenses, todayTotal, criptoRate, onAdd, onDelete 
   const { t, i18n } = useTranslation()
   const isKo = i18n.language === 'ko'
 
+  const [showScanner, setShowScanner] = useState(false)
   const [entryType, setEntryType] = useState<'expense' | 'income'>('expense')
   const [amount, setAmount]       = useState('')
   const [currency, setCurrency]   = useState<'ARS' | 'USD'>('ARS')
@@ -119,8 +121,17 @@ export function ExpensesTab({ expenses, todayTotal, criptoRate, onAdd, onDelete 
   return (
     <div className="tab-scroll h-full pb-24 px-4 pt-2 space-y-4">
 
+      {/* Botón escáner */}
+      <button
+        onClick={() => setShowScanner(true)}
+        className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mt-1"
+        style={{ background: 'linear-gradient(135deg, #2D2417, #5C4A3A)', color: 'white', border: 'none', cursor: 'pointer' }}
+      >
+        📋 Escanear comprobante / transferencia
+      </button>
+
       {/* Toggle Gasto / Ingreso */}
-      <div className="flex gap-2 mt-1">
+      <div className="flex gap-2">
         <button
           onClick={() => setEntryType('expense')}
           className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
@@ -375,6 +386,18 @@ export function ExpensesTab({ expenses, todayTotal, criptoRate, onAdd, onDelete 
             </button>
           </div>
         </div>
+      )}
+
+      {/* Scanner de comprobantes */}
+      {showScanner && (
+        <ReceiptScanner
+          onResult={(amount, description) => {
+            if (amount) setAmount(String(Math.round(amount)))
+            if (description) setDesc(description)
+            setShowScanner(false)
+          }}
+          onClose={() => setShowScanner(false)}
+        />
       )}
 
       {/* Modal borrado */}
