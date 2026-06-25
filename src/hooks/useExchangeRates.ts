@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { fetchDolarRates, DolarRate } from '../lib/dolarapi'
+import { fetchDolarRates, DolarRate, getManualDolarApp, setManualDolarApp } from '../lib/dolarapi'
 
 export function useExchangeRates() {
-  const [rates, setRates]       = useState<DolarRate[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState<string | null>(null)
-  const [lastUpdate, setLast]   = useState<Date | null>(null)
+  const [rates, setRates]           = useState<DolarRate[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState<string | null>(null)
+  const [lastUpdate, setLast]       = useState<Date | null>(null)
+  const [manualRate, setManualRate] = useState<number | null>(getManualDolarApp)
 
   const load = async () => {
     try {
@@ -23,15 +24,38 @@ export function useExchangeRates() {
 
   useEffect(() => { load() }, [])
 
-  const getCripto = () => rates.find(r => r.casa === 'cripto')?.venta ?? null
-  const getBest   = () => {
-    if (!rates.length) return null
-    return rates.reduce((best, r) => {
+  const updateManualRate = (rate: number | null) => {
+    setManualDolarApp(rate)
+    setManualRate(rate)
+  }
+
+  const getCripto = (): number | null => {
+    if (manualRate) return manualRate
+    return rates.find(r => r.casa === 'cripto')?.venta ?? null
+  }
+
+  const getEffectiveRates = (): DolarRate[] => {
+    if (!manualRate) return rates
+    return rates.map(r =>
+      r.casa === 'cripto' ? { ...r, venta: manualRate, compra: manualRate } : r
+    )
+  }
+
+  const getBest = () => {
+    const effective = getEffectiveRates()
+    if (!effective.length) return null
+    return effective.reduce((best, r) => {
       if (!r.venta) return best
       if (!best || r.venta < best.venta!) return r
       return best
     }, null as DolarRate | null)
   }
 
-  return { rates, loading, error, lastUpdate, reload: load, getCripto, getBest }
+  return {
+    rates: getEffectiveRates(),
+    loading, error, lastUpdate,
+    reload: load,
+    getCripto, getBest,
+    manualRate, updateManualRate,
+  }
 }

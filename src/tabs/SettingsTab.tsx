@@ -1,13 +1,48 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
-import { FIXED_EXPENSES, FINANCIAL_PROFILE } from '../constants/fixedExpenses'
+import { FINANCIAL_PROFILE } from '../constants/fixedExpenses'
 import { supabase } from '../lib/supabase'
 import type { AppSettings } from '../hooks/useSettings'
 
+const FIXED_KEY = 'hana_fixed_expenses'
+
+type FixedItem = { name: string; amount: number; category?: string }
+
+function loadFixed(): { personal: FixedItem[]; shared: FixedItem[] } {
+  try {
+    const saved = localStorage.getItem(FIXED_KEY)
+    if (saved) return JSON.parse(saved)
+  } catch {}
+  return {
+    personal: [
+      { name: 'Psicóloga',         amount: 160000, category: 'health'    },
+      { name: 'Carrefour',         amount: 120000, category: 'home'      },
+      { name: 'Verdulería',        amount: 80000,  category: 'food'      },
+      { name: 'Inglés (4 clases)', amount: 72000,  category: 'education' },
+      { name: 'Voley',             amount: 30000,  category: 'health'    },
+      { name: 'Celular Tuenti',    amount: 18000,  category: 'other'     },
+      { name: 'Amazon Prime',      amount: 7863,   category: 'leisure'   },
+    ],
+    shared: [
+      { name: '½ Flow',     amount: 80000  },
+      { name: '½ Alarma',   amount: 70069  },
+      { name: '½ Naturgy',  amount: 48510  },
+      { name: '½ Municipal',amount: 33997  },
+      { name: '½ Edenor',   amount: 15924  },
+    ]
+  }
+}
+
+function saveFixed(data: { personal: FixedItem[]; shared: FixedItem[] }) {
+  localStorage.setItem(FIXED_KEY, JSON.stringify(data))
+}
+
 type Props = {
-  settings: AppSettings
-  onUpdate: (key: keyof AppSettings, value: string | number) => Promise<void>
+  settings:         AppSettings
+  onUpdate:         (key: keyof AppSettings, value: string | number) => Promise<void>
+  manualRate:       number | null
+  updateManualRate: (r: number | null) => void
 }
 
 function ToggleRow({ label, defaultOn = true }: { label: string; defaultOn?: boolean }) {
@@ -82,11 +117,14 @@ function EditableRow({ label, value, onChange, prefix = '', type = 'text' }: {
   )
 }
 
-export function SettingsTab({ settings, onUpdate }: Props) {
+export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }: Props) {
   const { t, i18n: i18nHook } = useTranslation()
   const isKo = i18nHook.language === 'ko'
-  const [syncing, setSyncing] = useState(false)
-  const [syncMsg, setSyncMsg] = useState('')
+  const [syncing, setSyncing]         = useState(false)
+  const [syncMsg, setSyncMsg]         = useState('')
+  const [manualInput, setManualInput] = useState(manualRate ? String(manualRate) : '')
+  const [fixed, setFixed]             = useState(loadFixed)
+  const [editingFixed, setEditingFixed] = useState<{section: 'personal'|'shared', idx: number} | null>(null)
 
   const changeLang = (lang: string) => {
     i18n.changeLanguage(lang)
@@ -164,53 +202,121 @@ export function SettingsTab({ settings, onUpdate }: Props) {
         {NOTIF_LABELS.map(label => <ToggleRow key={label} label={label} />)}
       </div>
 
-      {/* Gastos fijos */}
+      {/* Dólar App manual */}
+      <div className="card">
+        <p className="text-xs font-semibold mb-2" style={{ color: '#9E8872' }}>
+          💵 {isKo ? '달러앱 수동 입력' : 'DolarApp — valor manual'}
+        </p>
+        <p className="text-xs mb-3" style={{ color: '#9E8872' }}>
+          {isKo ? 'API 값을 수동으로 덮어쓸 수 있어요' : 'Podés sobrescribir el valor de la API con el que ves en DolarApp'}
+        </p>
+        <div className="flex gap-2 items-center">
+          <input
+            className="hana-input"
+            style={{ flex: 1 }}
+            type="number"
+            inputMode="decimal"
+            placeholder="Ej: 1520"
+            value={manualInput}
+            onChange={e => setManualInput(e.target.value)}
+          />
+          <button
+            className="method-chip active"
+            onClick={() => {
+              const v = parseFloat(manualInput)
+              updateManualRate(v > 0 ? v : null)
+            }}
+          >
+            {isKo ? '저장' : 'Guardar'}
+          </button>
+          {manualRate && (
+            <button
+              className="method-chip inactive"
+              onClick={() => { updateManualRate(null); setManualInput('') }}
+            >
+              {isKo ? '삭제' : 'Quitar'}
+            </button>
+          )}
+        </div>
+        {manualRate && (
+          <p className="text-xs mt-2 font-semibold" style={{ color: '#1A7A6E' }}>
+            ✅ Usando USD {manualRate.toLocaleString('es-AR')} (manual)
+          </p>
+        )}
+      </div>
+
+      {/* Gastos fijos editables */}
       <div className="card">
         <p className="text-xs font-semibold mb-3" style={{ color: '#9E8872' }}>📋 {t('fixed_expenses')}</p>
 
-        <p className="text-xs font-semibold mb-1" style={{ color: '#9E8872' }}>
-          {isKo ? '개인 (ARS)' : 'Personales (ARS)'}
-        </p>
-        {FIXED_EXPENSES.personal_ars.map(e => (
-          <div key={e.name} className="flex justify-between py-1.5" style={{ borderBottom: '1px solid #F0E8D5' }}>
-            <span className="text-sm" style={{ color: '#5C4A3A' }}>
-              {isKo ? e.nameKo : e.name}
-            </span>
-            <span className="text-sm font-semibold" style={{ fontFamily: 'Inter', color: '#2D2417' }}>
-              ${e.amount.toLocaleString('es-AR')}
-            </span>
+        {(['personal','shared'] as const).map(section => (
+          <div key={section}>
+            <div className="flex justify-between items-center mt-2 mb-1">
+              <p className="text-xs font-semibold" style={{ color: '#9E8872' }}>
+                {section === 'personal' ? (isKo ? '개인 (ARS)' : 'Personales (ARS)') : (isKo ? '공동 (ARS)' : 'Compartidos (ARS)')}
+              </p>
+              <button
+                onClick={() => {
+                  const next = { ...fixed, [section]: [...fixed[section], { name: 'Nuevo', amount: 0 }] }
+                  setFixed(next); saveFixed(next)
+                  setEditingFixed({ section, idx: fixed[section].length })
+                }}
+                style={{ background: 'none', border: 'none', color: '#1A7A6E', cursor: 'pointer', fontSize: '1.1rem', fontWeight: 700 }}
+              >+</button>
+            </div>
+            {fixed[section].map((e, idx) => (
+              <div key={idx} className="flex items-center gap-2 py-1.5" style={{ borderBottom: '1px solid #F0E8D5' }}>
+                {editingFixed?.section === section && editingFixed.idx === idx ? (
+                  <>
+                    <input
+                      className="hana-input text-sm"
+                      style={{ flex: 1, padding: '0.3rem 0.5rem' }}
+                      value={e.name}
+                      onChange={ev => {
+                        const next = { ...fixed }
+                        next[section] = fixed[section].map((x, i) => i === idx ? { ...x, name: ev.target.value } : x)
+                        setFixed(next)
+                      }}
+                    />
+                    <input
+                      className="hana-input text-sm"
+                      style={{ width: 90, padding: '0.3rem 0.5rem', fontFamily: 'Inter' }}
+                      type="number"
+                      value={e.amount}
+                      onChange={ev => {
+                        const next = { ...fixed }
+                        next[section] = fixed[section].map((x, i) => i === idx ? { ...x, amount: Number(ev.target.value) } : x)
+                        setFixed(next)
+                      }}
+                    />
+                    <button
+                      onClick={() => { saveFixed(fixed); setEditingFixed(null) }}
+                      style={{ background: 'none', border: 'none', color: '#1A7A6E', cursor: 'pointer', fontWeight: 700 }}
+                    >✓</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm flex-1" style={{ color: '#5C4A3A' }}>{e.name}</span>
+                    <span className="text-sm font-semibold" style={{ fontFamily: 'Inter', color: '#2D2417' }}>
+                      ${e.amount.toLocaleString('es-AR')}
+                    </span>
+                    <button
+                      onClick={() => setEditingFixed({ section, idx })}
+                      style={{ background: 'none', border: 'none', color: '#9E8872', cursor: 'pointer', fontSize: '0.85rem' }}
+                    >✏️</button>
+                    <button
+                      onClick={() => {
+                        const next = { ...fixed, [section]: fixed[section].filter((_, i) => i !== idx) }
+                        setFixed(next); saveFixed(next)
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#E8899A', cursor: 'pointer', fontSize: '0.85rem' }}
+                    >✕</button>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
         ))}
-
-        <p className="text-xs font-semibold mt-3 mb-1" style={{ color: '#9E8872' }}>
-          {isKo ? '공동 (ARS)' : 'Compartidos (ARS)'}
-        </p>
-        {FIXED_EXPENSES.shared_ars.map(e => (
-          <div key={e.name} className="flex justify-between py-1.5" style={{ borderBottom: '1px solid #F0E8D5' }}>
-            <span className="text-sm" style={{ color: '#5C4A3A' }}>{e.name}</span>
-            <span className="text-sm font-semibold" style={{ fontFamily: 'Inter', color: '#2D2417' }}>
-              ${e.amount.toLocaleString('es-AR')}
-            </span>
-          </div>
-        ))}
-
-        <p className="text-xs font-semibold mt-3 mb-1" style={{ color: '#9E8872' }}>
-          {isKo ? '구독 (USD)' : 'Suscripciones (USD)'}
-        </p>
-        {FIXED_EXPENSES.usd.map(e => (
-          <div key={e.name} className="flex justify-between py-1.5" style={{ borderBottom: '1px solid #F0E8D5' }}>
-            <span className="text-sm" style={{ color: '#5C4A3A' }}>
-              {isKo ? e.nameKo : e.name}
-            </span>
-            <span className="text-sm font-semibold" style={{ fontFamily: 'Inter', color: '#2D2417' }}>
-              USD {e.amount.toFixed(2)}
-            </span>
-          </div>
-        ))}
-
-        <p className="text-xs mt-2 font-semibold text-right" style={{ color: '#9E8872', fontFamily: 'Inter' }}>
-          {isKo ? '구독 합계' : 'Total suscripciones'}: USD {FINANCIAL_PROFILE.usd_subscriptions}
-        </p>
       </div>
 
       {/* Conexión */}

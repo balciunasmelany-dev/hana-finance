@@ -26,7 +26,7 @@ export default function App() {
     monthTotal, impulseTotal, topCategory,
     addExpense, removeExpense
   } = useExpenses()
-  const { rates, getCripto } = useExchangeRates()
+  const { rates, getCripto, manualRate, updateManualRate } = useExchangeRates()
 
   const criptoRate = getCripto()
 
@@ -83,7 +83,7 @@ export default function App() {
         )}
         {activeTab === 'calculator' && <CalculatorTab />}
         {activeTab === 'settings' && (
-          <SettingsTab settings={settings} onUpdate={update} />
+          <SettingsTab settings={settings} onUpdate={update} manualRate={manualRate} updateManualRate={updateManualRate} />
         )}
       </main>
 

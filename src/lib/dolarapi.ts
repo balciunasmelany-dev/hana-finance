@@ -26,9 +26,21 @@ export function getRateByName(rates: DolarRate[], casa: string): DolarRate | und
 }
 
 export const RATE_ORDER: { casa: string; label: string; labelKo: string }[] = [
-  { casa: 'cripto',   label: 'Cripto',   labelKo: '크립토'  },
-  { casa: 'mep',      label: 'MEP',      labelKo: 'MEP'     },
-  { casa: 'blue',     label: 'Blue',     labelKo: '블루'    },
-  { casa: 'oficial',  label: 'Oficial',  labelKo: '공식'    },
-  { casa: 'tarjeta',  label: 'Tarjeta',  labelKo: '카드'    },
+  { casa: 'cripto',   label: 'DolarApp / Cripto', labelKo: '크립토'  },
+  { casa: 'bolsa',    label: 'MEP',               labelKo: 'MEP'     },
+  { casa: 'blue',     label: 'Blue',              labelKo: '블루'    },
+  { casa: 'oficial',  label: 'Oficial',           labelKo: '공식'    },
+  { casa: 'tarjeta',  label: 'Tarjeta',           labelKo: '카드'    },
 ]
+
+const MANUAL_RATE_KEY = 'hana_manual_dolarapp'
+
+export function getManualDolarApp(): number | null {
+  const v = localStorage.getItem(MANUAL_RATE_KEY)
+  return v ? parseFloat(v) : null
+}
+
+export function setManualDolarApp(rate: number | null) {
+  if (rate) localStorage.setItem(MANUAL_RATE_KEY, String(rate))
+  else localStorage.removeItem(MANUAL_RATE_KEY)
+}
