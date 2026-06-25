@@ -15,8 +15,30 @@ export async function fetchDolarRates(): Promise<DolarRate[]> {
     const { ts, data } = JSON.parse(cached)
     if (Date.now() - ts < CACHE_TTL) return data
   }
-  const res  = await fetch('https://dolarapi.com/v1/dolares')
-  const data = await res.json() as DolarRate[]
+
+  const [dolaresRes, dolarappRes] = await Promise.all([
+    fetch('https://dolarapi.com/v1/dolares'),
+    fetch('https://dolarapi.com/v1/exchanges/dolarapp/usd').catch(() => null),
+  ])
+
+  const data = await dolaresRes.json() as DolarRate[]
+
+  // Reemplazar la cotización cripto con la de DolarApp real
+  if (dolarappRes?.ok) {
+    const dolarappData = await dolarappRes.json() as Array<{ compra: number; venta: number }>
+    if (dolarappData[0]) {
+      const idx = data.findIndex(r => r.casa === 'cripto')
+      if (idx >= 0) {
+        data[idx] = {
+          ...data[idx],
+          compra: dolarappData[0].compra,
+          venta:  dolarappData[0].venta,
+          nombre: 'DolarApp',
+        }
+      }
+    }
+  }
+
   localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }))
   return data
 }
