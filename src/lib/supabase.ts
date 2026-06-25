@@ -12,9 +12,11 @@ export type Expense = {
   date:         string
   description:  string
   amount_ars:   number
-  method:       'debito' | 'tarjeta'
+  method:       'debito' | 'tarjeta' | 'debito_global' | 'debito_bbva' | 'efectivo'
   category:     string
   is_impulse:   boolean
+  type?:        'expense' | 'income'
+  currency?:    'ARS' | 'USD'
   usd_equiv?:   number
   cripto_rate?: number
   week_number?: number
