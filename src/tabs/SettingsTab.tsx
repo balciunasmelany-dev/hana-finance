@@ -11,6 +11,8 @@ import {
   hasPermission,
   scheduleDailyCheckin,
   cancelDailyCheckin,
+  subscribeWebPush,
+  unsubscribeWebPush,
   type NotifSettings,
 } from '../lib/notifications'
 
@@ -83,13 +85,13 @@ function ToggleSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 }
 
 function NotificationsSection({ isKo }: { isKo: boolean }) {
-  const [notifs, setNotifs] = useState<NotifSettings>(loadNotifSettings)
+  const [notifs, setNotifs]       = useState<NotifSettings>(loadNotifSettings)
   const [permStatus, setPermStatus] = useState<NotificationPermission | 'unsupported'>(
     'Notification' in window ? Notification.permission : 'unsupported'
   )
+  const [webPushOk, setWebPushOk] = useState<boolean | null>(null)
 
   useEffect(() => {
-    // Al montar, si ya tenemos permiso y daily_checkin estaba activo, reprogramar
     if (hasPermission() && notifs.daily_checkin) {
       scheduleDailyCheckin('20:00')
     }
@@ -99,7 +101,6 @@ function NotificationsSection({ isKo }: { isKo: boolean }) {
   const toggle = async (key: keyof NotifSettings) => {
     const newVal = !notifs[key]
 
-    // Si el usuario activa cualquier notificación, pedimos permiso
     if (newVal && !hasPermission()) {
       const granted = await requestPermission()
       setPermStatus(granted ? 'granted' : 'denied')
@@ -116,8 +117,17 @@ function NotificationsSection({ isKo }: { isKo: boolean }) {
     saveNotifSettings(updated)
 
     if (key === 'daily_checkin') {
-      if (newVal) scheduleDailyCheckin('20:00')
-      else cancelDailyCheckin()
+      if (newVal) {
+        // Intentar Web Push real primero (funciona con app cerrada)
+        const ok = await subscribeWebPush()
+        setWebPushOk(ok)
+        // Siempre activar también el fallback local
+        scheduleDailyCheckin('20:00')
+      } else {
+        await unsubscribeWebPush()
+        cancelDailyCheckin()
+        setWebPushOk(null)
+      }
     }
   }
 
@@ -151,6 +161,17 @@ function NotificationsSection({ isKo }: { isKo: boolean }) {
           ⚠️ {isKo
             ? '알림이 차단되어 있어요. 브라우저 설정에서 허용해 주세요.'
             : 'Las notificaciones están bloqueadas. Entrá al candado 🔒 en la barra del navegador → Notificaciones → Permitir.'}
+        </p>
+      )}
+
+      {webPushOk === true && (
+        <p className="text-xs mb-3 p-2 rounded-xl" style={{ background: '#F0FFF8', color: '#1A7A6E' }}>
+          ✅ {isKo ? '앱이 닫혀도 알림이 와요!' : '¡Listo! Te va a llegar aunque tengas la app cerrada.'}
+        </p>
+      )}
+      {webPushOk === false && (
+        <p className="text-xs mb-3 p-2 rounded-xl" style={{ background: '#FFFBF0', color: '#9E6B00' }}>
+          ⚡ {isKo ? '앱이 열려있을 때만 알림이 와요.' : 'Modo básico: la notificación llega mientras la app está abierta. Para recibirla siempre, configurá Supabase.'}
         </p>
       )}
 
