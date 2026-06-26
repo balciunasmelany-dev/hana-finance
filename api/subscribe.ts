@@ -1,18 +1,35 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL!
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY!
+export const config = {
+  api: { bodyParser: true },
+}
 
-function sbFetch(path: string, method: string, body?: unknown) {
-  return fetch(`${SUPABASE_URL}/rest/v1${path}`, {
-    method,
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
+const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+
+async function sbDelete(endpoint: string) {
+  return fetch(
+    `${SUPABASE_URL}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'apikey':        SERVICE_KEY,
+        'Authorization': `Bearer ${SERVICE_KEY}`,
+      },
+    }
+  )
+}
+
+async function sbInsert(endpoint: string, data: unknown) {
+  return fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions`, {
+    method: 'POST',
     headers: {
       'Content-Type':  'application/json',
       'apikey':        SERVICE_KEY,
       'Authorization': `Bearer ${SERVICE_KEY}`,
       'Prefer':        'return=minimal',
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: JSON.stringify({ endpoint, data }),
   })
 }
 
@@ -26,41 +43,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({ error: 'Supabase not configured' })
   }
 
-  if (req.method === 'POST') {
-    const subscription = req.body
-    if (!subscription?.endpoint) return res.status(400).json({ error: 'Invalid subscription' })
+  try {
+    if (req.method === 'POST') {
+      const subscription = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+      if (!subscription?.endpoint) return res.status(400).json({ error: 'Invalid subscription' })
 
-    // Borrar si ya existe
-    await sbFetch(
-      `/push_subscriptions?endpoint=eq.${encodeURIComponent(subscription.endpoint)}`,
-      'DELETE'
-    )
+      await sbDelete(subscription.endpoint)
 
-    // Insertar nueva
-    const r = await sbFetch('/push_subscriptions', 'POST', {
-      endpoint: subscription.endpoint,
-      data: subscription,
-    })
-
-    if (!r.ok) {
+      const r = await sbInsert(subscription.endpoint, subscription)
       const txt = await r.text()
-      console.error('Supabase insert error:', txt)
-      return res.status(500).json({ error: txt })
+
+      if (!r.ok) {
+        console.error('Insert failed:', r.status, txt)
+        return res.status(500).json({ error: txt })
+      }
+
+      return res.status(201).json({ ok: true })
     }
 
-    return res.status(201).json({ ok: true })
-  }
-
-  if (req.method === 'DELETE') {
-    const { endpoint } = req.body ?? {}
-    if (endpoint) {
-      await sbFetch(
-        `/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`,
-        'DELETE'
-      )
+    if (req.method === 'DELETE') {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+      if (body?.endpoint) await sbDelete(body.endpoint)
+      return res.status(200).json({ ok: true })
     }
-    return res.status(200).json({ ok: true })
-  }
 
-  res.status(405).end()
+    return res.status(405).end()
+
+  } catch (err: unknown) {
+    console.error('Handler error:', err)
+    return res.status(500).json({ error: String(err) })
+  }
 }

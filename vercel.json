@@ -4,5 +4,9 @@
       "path": "/api/notify",
       "schedule": "0 23 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/subscribe.ts": { "runtime": "nodejs20.x" },
+    "api/notify.ts":    { "runtime": "nodejs20.x" }
+  }
 }
