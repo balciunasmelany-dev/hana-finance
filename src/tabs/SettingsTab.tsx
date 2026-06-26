@@ -1,9 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { FINANCIAL_PROFILE } from '../constants/fixedExpenses'
 import { supabase } from '../lib/supabase'
 import type { AppSettings } from '../hooks/useSettings'
+import {
+  loadNotifSettings,
+  saveNotifSettings,
+  requestPermission,
+  hasPermission,
+  scheduleDailyCheckin,
+  cancelDailyCheckin,
+  type NotifSettings,
+} from '../lib/notifications'
 
 const FIXED_KEY = 'hana_fixed_expenses'
 
@@ -45,34 +54,115 @@ type Props = {
   updateManualRate: (r: number | null) => void
 }
 
-function ToggleRow({ label, defaultOn = true }: { label: string; defaultOn?: boolean }) {
-  const [on, setOn] = useState(defaultOn)
+function ToggleSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
-    <div className="flex items-center justify-between py-2.5" style={{ borderBottom: '1px solid #F0E8D5' }}>
-      <span className="text-sm" style={{ color: '#5C4A3A' }}>{label}</span>
-      <button
-        onClick={() => setOn(o => !o)}
-        style={{
-          width: 44, height: 24,
-          borderRadius: 12,
-          background: on ? '#1A7A6E' : '#E0D8CC',
-          border: 'none',
-          cursor: 'pointer',
-          position: 'relative',
-          transition: 'background 0.2s',
-          flexShrink: 0,
-        }}
-      >
-        <span style={{
-          position: 'absolute',
-          top: 2, left: on ? 22 : 2,
-          width: 20, height: 20,
-          borderRadius: '50%',
-          background: 'white',
-          transition: 'left 0.2s',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-        }} />
-      </button>
+    <button
+      onClick={onToggle}
+      style={{
+        width: 44, height: 24,
+        borderRadius: 12,
+        background: on ? '#1A7A6E' : '#E0D8CC',
+        border: 'none',
+        cursor: 'pointer',
+        position: 'relative',
+        transition: 'background 0.2s',
+        flexShrink: 0,
+      }}
+    >
+      <span style={{
+        position: 'absolute',
+        top: 2, left: on ? 22 : 2,
+        width: 20, height: 20,
+        borderRadius: '50%',
+        background: 'white',
+        transition: 'left 0.2s',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+      }} />
+    </button>
+  )
+}
+
+function NotificationsSection({ isKo }: { isKo: boolean }) {
+  const [notifs, setNotifs] = useState<NotifSettings>(loadNotifSettings)
+  const [permStatus, setPermStatus] = useState<NotificationPermission | 'unsupported'>(
+    'Notification' in window ? Notification.permission : 'unsupported'
+  )
+
+  useEffect(() => {
+    // Al montar, si ya tenemos permiso y daily_checkin estaba activo, reprogramar
+    if (hasPermission() && notifs.daily_checkin) {
+      scheduleDailyCheckin('20:00')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const toggle = async (key: keyof NotifSettings) => {
+    const newVal = !notifs[key]
+
+    // Si el usuario activa cualquier notificación, pedimos permiso
+    if (newVal && !hasPermission()) {
+      const granted = await requestPermission()
+      setPermStatus(granted ? 'granted' : 'denied')
+      if (!granted) {
+        alert(isKo
+          ? '알림 권한이 필요해요. 브라우저 설정에서 허용해 주세요.'
+          : 'Necesitás dar permiso de notificaciones. Buscá el candado 🔒 en la barra del navegador → Notificaciones → Permitir.')
+        return
+      }
+    }
+
+    const updated = { ...notifs, [key]: newVal }
+    setNotifs(updated)
+    saveNotifSettings(updated)
+
+    if (key === 'daily_checkin') {
+      if (newVal) scheduleDailyCheckin('20:00')
+      else cancelDailyCheckin()
+    }
+  }
+
+  const rows: { key: keyof NotifSettings; label: string; labelKo: string; desc: string }[] = [
+    {
+      key: 'daily_checkin',
+      label: '🌸 Recordatorio diario (20:00)',
+      labelKo: '🌸 매일 알림 (20:00)',
+      desc: 'Te avisa cada noche para que registres tus gastos',
+    },
+    {
+      key: 'budget_alert',
+      label: '⚠️ Alerta de presupuesto',
+      labelKo: '⚠️ 예산 경고',
+      desc: 'Cuando superás el presupuesto semanal',
+    },
+    {
+      key: 'milestone',
+      label: '🎉 Logros de ahorro',
+      labelKo: '🎉 저축 달성',
+      desc: 'Cuando alcanzás un hito de tu meta',
+    },
+  ]
+
+  return (
+    <div className="card">
+      <p className="text-xs font-semibold mb-1" style={{ color: '#9E8872' }}>🔔 {isKo ? '알림' : 'Notificaciones'}</p>
+
+      {permStatus === 'denied' && (
+        <p className="text-xs mb-3 p-2 rounded-xl" style={{ background: '#FFF0F0', color: '#C0392B' }}>
+          ⚠️ {isKo
+            ? '알림이 차단되어 있어요. 브라우저 설정에서 허용해 주세요.'
+            : 'Las notificaciones están bloqueadas. Entrá al candado 🔒 en la barra del navegador → Notificaciones → Permitir.'}
+        </p>
+      )}
+
+      {rows.map(r => (
+        <div key={r.key} className="flex items-center justify-between py-2.5" style={{ borderBottom: '1px solid #F0E8D5' }}>
+          <div>
+            <p className="text-sm" style={{ color: '#5C4A3A' }}>{isKo ? r.labelKo : r.label}</p>
+            <p className="text-xs" style={{ color: '#9E8872' }}>{r.desc}</p>
+          </div>
+          <ToggleSwitch on={notifs[r.key]} onToggle={() => toggle(r.key)} />
+        </div>
+      ))}
     </div>
   )
 }
@@ -146,11 +236,6 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
     }
   }
 
-  const NOTIF_LABELS = [
-    t('daily_checkin'), t('budget_alert'), t('red_week'),
-    t('dues'), t('month_end'), t('milestones'), t('goal_not_reached'),
-  ]
-
   return (
     <div className="tab-scroll h-full pb-24 px-4 pt-2 space-y-4">
 
@@ -197,10 +282,7 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
       </div>
 
       {/* Notificaciones */}
-      <div className="card">
-        <p className="text-xs font-semibold mb-1" style={{ color: '#9E8872' }}>🔔 {t('notifications')}</p>
-        {NOTIF_LABELS.map(label => <ToggleRow key={label} label={label} />)}
-      </div>
+      <NotificationsSection isKo={isKo} />
 
       {/* Dólar App manual */}
       <div className="card">
