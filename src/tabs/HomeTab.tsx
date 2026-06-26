@@ -147,30 +147,40 @@ export function HomeTab({ todayTotal, weekTotal, settings, criptoRate }: Props) 
           <p className="text-xs font-semibold mb-2" style={{ color: '#9E8872' }}>
             💰 {isKo ? '현재 잔액' : 'Saldo disponible'}
           </p>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-2">
             <div>
-              <p className="text-xs" style={{ color: '#9E8872' }}>ARS (DolarApp)</p>
-              <p className="font-black text-xl" style={{
-                fontFamily: 'Inter',
-                color: availableArs >= 0 ? '#1A7A6E' : '#C0392B'
-              }}>
+              <p className="text-xs" style={{ color: '#9E8872' }}>{isKo ? 'ARS 가용' : 'ARS disponible'}</p>
+              <p className="font-black text-xl" style={{ fontFamily: 'Inter', color: availableArs >= 0 ? '#1A7A6E' : '#C0392B' }}>
                 ${availableArs.toLocaleString('es-AR')}
               </p>
               {paidAmount > 0 && (
                 <p className="text-xs" style={{ color: '#9E8872' }}>
-                  −${paidAmount.toLocaleString('es-AR')} {isKo ? '고정 지출' : 'en fijos pagados'}
+                  −${paidAmount.toLocaleString('es-AR')} {isKo ? '납부됨' : 'en fijos pagados'}
                 </p>
               )}
             </div>
             {balance.usd > 0 && (
               <div className="text-right">
-                <p className="text-xs" style={{ color: '#9E8872' }}>USD (DolarApp)</p>
+                <p className="text-xs" style={{ color: '#9E8872' }}>{isKo ? 'USD 가용' : 'USD disponible'}</p>
                 <p className="font-black text-xl" style={{ fontFamily: 'Inter', color: '#1A7A6E' }}>
-                  USD {balance.usd.toLocaleString('es-AR')}
+                  USD {balance.usd.toLocaleString()}
                 </p>
               </div>
             )}
           </div>
+          {balance.savings > 0 && (
+            <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid #F0E8D5' }}>
+              <div>
+                <p className="text-xs" style={{ color: '#9E8872' }}>💎 {isKo ? 'USD 저축 (DolarApp)' : 'USD ahorro (DolarApp)'}</p>
+                <p className="font-bold text-base" style={{ fontFamily: 'Inter', color: '#C9920A' }}>
+                  USD {balance.savings.toLocaleString()}
+                </p>
+              </div>
+              <span className="text-xs px-2 py-1 rounded-xl font-semibold" style={{ background: '#FFF8E6', color: '#C9920A' }}>
+                {isKo ? '손대지 마세요 🌸' : 'No tocar 🌸'}
+              </span>
+            </div>
+          )}
         </div>
       ) : null}
 

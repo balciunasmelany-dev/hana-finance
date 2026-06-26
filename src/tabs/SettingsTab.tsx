@@ -240,6 +240,7 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
   const [balance, setBalance]         = useState(loadBalance)
   const [balArs, setBalArs]           = useState(String(loadBalance().ars || ''))
   const [balUsd, setBalUsd]           = useState(String(loadBalance().usd || ''))
+  const [balSav, setBalSav]           = useState(String(loadBalance().savings || ''))
   const [paid, setPaid]               = useState(loadPaidFixed)
 
   const changeLang = (lang: string) => {
@@ -289,32 +290,25 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
         </p>
         <div className="flex gap-2 mb-2">
           <div className="flex-1">
-            <p className="text-xs mb-1" style={{ color: '#9E8872' }}>ARS</p>
-            <input
-              className="hana-input w-full"
-              type="number"
-              inputMode="numeric"
-              placeholder="0"
-              value={balArs}
-              onChange={e => setBalArs(e.target.value)}
-            />
+            <p className="text-xs mb-1" style={{ color: '#9E8872' }}>ARS corriente</p>
+            <input className="hana-input w-full" type="number" inputMode="numeric" placeholder="0"
+              value={balArs} onChange={e => setBalArs(e.target.value)} />
           </div>
           <div className="flex-1">
-            <p className="text-xs mb-1" style={{ color: '#9E8872' }}>USD</p>
-            <input
-              className="hana-input w-full"
-              type="number"
-              inputMode="decimal"
-              placeholder="0"
-              value={balUsd}
-              onChange={e => setBalUsd(e.target.value)}
-            />
+            <p className="text-xs mb-1" style={{ color: '#9E8872' }}>USD corriente</p>
+            <input className="hana-input w-full" type="number" inputMode="decimal" placeholder="0"
+              value={balUsd} onChange={e => setBalUsd(e.target.value)} />
           </div>
+        </div>
+        <div className="mb-3">
+          <p className="text-xs mb-1" style={{ color: '#9E8872' }}>💎 USD ahorro (DolarApp USDT — no se toca)</p>
+          <input className="hana-input w-full" type="number" inputMode="decimal" placeholder="0"
+            value={balSav} onChange={e => setBalSav(e.target.value)} />
         </div>
         <button
           className="btn-primary w-full"
           onClick={() => {
-            const b = { ars: Number(balArs) || 0, usd: Number(balUsd) || 0, updatedAt: new Date().toISOString() }
+            const b = { ars: Number(balArs) || 0, usd: Number(balUsd) || 0, savings: Number(balSav) || 0, updatedAt: new Date().toISOString() }
             saveBalance(b)
             setBalance(b)
           }}

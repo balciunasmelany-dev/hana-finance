@@ -4,8 +4,9 @@ const BALANCE_KEY = 'hana_balance'
 const PAID_KEY    = 'hana_paid_fixed'
 
 export type Balance = {
-  ars: number
-  usd: number
+  ars:     number   // DolarApp ARS + BBVA (gastos corrientes)
+  usd:     number   // DolarApp USD corriente (gastos en USD)
+  savings: number   // DolarApp ahorro/USDT (no se toca)
   updatedAt: string
 }
 
@@ -14,7 +15,7 @@ export function loadBalance(): Balance {
     const s = localStorage.getItem(BALANCE_KEY)
     if (s) return JSON.parse(s)
   } catch {}
-  return { ars: 0, usd: 0, updatedAt: '' }
+  return { ars: 0, usd: 0, savings: 0, updatedAt: '' }
 }
 
 export function saveBalance(b: Balance) {
