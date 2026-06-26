@@ -21,11 +21,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const subscription = req.body
     if (!subscription?.endpoint) return res.status(400).json({ error: 'Invalid subscription' })
 
+    // Borrar si ya existe y reinsertar
+    await db.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint)
     const { error } = await db
       .from('push_subscriptions')
-      .upsert({ endpoint: subscription.endpoint, data: subscription }, { onConflict: 'endpoint' })
+      .insert({ endpoint: subscription.endpoint, data: subscription })
 
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) {
+      console.error('Supabase error:', JSON.stringify(error))
+      return res.status(500).json({ error: error.message, code: error.code, details: error.details })
+    }
     return res.status(201).json({ ok: true })
   }
 
