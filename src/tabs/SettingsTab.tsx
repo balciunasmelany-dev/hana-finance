@@ -4,6 +4,7 @@ import i18n from '../i18n'
 import { FINANCIAL_PROFILE } from '../constants/fixedExpenses'
 import { supabase } from '../lib/supabase'
 import type { AppSettings } from '../hooks/useSettings'
+import { loadBalance, saveBalance, loadPaidFixed, markPaid } from '../lib/balance'
 import {
   loadNotifSettings,
   saveNotifSettings,
@@ -236,6 +237,10 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
   const [manualInput, setManualInput] = useState(manualRate ? String(manualRate) : '')
   const [fixed, setFixed]             = useState(loadFixed)
   const [editingFixed, setEditingFixed] = useState<{section: 'personal'|'shared', idx: number} | null>(null)
+  const [balance, setBalance]         = useState(loadBalance)
+  const [balArs, setBalArs]           = useState(String(loadBalance().ars || ''))
+  const [balUsd, setBalUsd]           = useState(String(loadBalance().usd || ''))
+  const [paid, setPaid]               = useState(loadPaidFixed)
 
   const changeLang = (lang: string) => {
     i18n.changeLanguage(lang)
@@ -272,6 +277,55 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
           <span className="text-sm" style={{ color: '#5C4A3A' }}>{isKo ? '급여일' : 'Día de cobro'}</span>
           <span className="font-bold" style={{ color: '#1A7A6E', fontFamily: 'Inter' }}>{FINANCIAL_PROFILE.salary_day_range}</span>
         </div>
+      </div>
+
+      {/* Saldo disponible */}
+      <div className="card">
+        <p className="text-xs font-semibold mb-1" style={{ color: '#9E8872' }}>
+          💰 {isKo ? '현재 잔액 (DolarApp)' : 'Saldo disponible (DolarApp)'}
+        </p>
+        <p className="text-xs mb-3" style={{ color: '#9E8872' }}>
+          {isKo ? '코브로할 때 업데이트하세요' : 'Actualizá cuando cobrás o hacés un depósito'}
+        </p>
+        <div className="flex gap-2 mb-2">
+          <div className="flex-1">
+            <p className="text-xs mb-1" style={{ color: '#9E8872' }}>ARS</p>
+            <input
+              className="hana-input w-full"
+              type="number"
+              inputMode="numeric"
+              placeholder="0"
+              value={balArs}
+              onChange={e => setBalArs(e.target.value)}
+            />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs mb-1" style={{ color: '#9E8872' }}>USD</p>
+            <input
+              className="hana-input w-full"
+              type="number"
+              inputMode="decimal"
+              placeholder="0"
+              value={balUsd}
+              onChange={e => setBalUsd(e.target.value)}
+            />
+          </div>
+        </div>
+        <button
+          className="btn-primary w-full"
+          onClick={() => {
+            const b = { ars: Number(balArs) || 0, usd: Number(balUsd) || 0, updatedAt: new Date().toISOString() }
+            saveBalance(b)
+            setBalance(b)
+          }}
+        >
+          {isKo ? '저장' : '💾 Guardar saldo'}
+        </button>
+        {balance.updatedAt && (
+          <p className="text-xs mt-2 text-center" style={{ color: '#9E8872' }}>
+            Actualizado: {new Date(balance.updatedAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+          </p>
+        )}
       </div>
 
       {/* Idioma */}
@@ -400,19 +454,40 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
                 ) : (
                   <>
                     <span className="text-sm flex-1" style={{ color: '#5C4A3A' }}>{e.name}</span>
-                    <span className="text-sm font-semibold" style={{ fontFamily: 'Inter', color: '#2D2417' }}>
+                    <span className="text-xs font-semibold mr-1" style={{ fontFamily: 'Inter', color: '#9E8872' }}>
                       ${e.amount.toLocaleString('es-AR')}
                     </span>
+                    {/* Botón Pagar / Pagado */}
+                    <button
+                      onClick={() => {
+                        const isPaid = paid.has(e.name)
+                        const next = markPaid(e.name, !isPaid)
+                        setPaid(new Set(next))
+                      }}
+                      style={{
+                        border: 'none',
+                        borderRadius: 10,
+                        padding: '3px 10px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: paid.has(e.name) ? '#00C47D' : '#C0392B',
+                        color: 'white',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {paid.has(e.name) ? (isKo ? '납부 ✓' : 'Pagado ✓') : (isKo ? '납부' : 'Pagar')}
+                    </button>
                     <button
                       onClick={() => setEditingFixed({ section, idx })}
-                      style={{ background: 'none', border: 'none', color: '#9E8872', cursor: 'pointer', fontSize: '0.85rem' }}
+                      style={{ background: 'none', border: 'none', color: '#9E8872', cursor: 'pointer', fontSize: '0.8rem' }}
                     >✏️</button>
                     <button
                       onClick={() => {
                         const next = { ...fixed, [section]: fixed[section].filter((_, i) => i !== idx) }
                         setFixed(next); saveFixed(next)
                       }}
-                      style={{ background: 'none', border: 'none', color: '#E8899A', cursor: 'pointer', fontSize: '0.85rem' }}
+                      style={{ background: 'none', border: 'none', color: '#E8899A', cursor: 'pointer', fontSize: '0.8rem' }}
                     >✕</button>
                   </>
                 )}

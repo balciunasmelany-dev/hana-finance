@@ -4,6 +4,7 @@ import { useExchangeRates } from '../hooks/useExchangeRates'
 import { CherryBlossom } from '../components/CherryBlossomSVG'
 import { MOTIVATIONAL_QUOTES, FINANCIAL_PROFILE } from '../constants/fixedExpenses'
 import type { AppSettings } from '../hooks/useSettings'
+import { loadBalance, loadPaidFixed } from '../lib/balance'
 
 type Props = {
   todayTotal:  number
@@ -115,6 +116,19 @@ export function HomeTab({ todayTotal, weekTotal, settings, criptoRate }: Props) 
   const quote = MOTIVATIONAL_QUOTES[quoteIdx]
   const todayUsd = criptoRate ? (todayTotal / criptoRate).toFixed(1) : '–'
 
+  // Saldo real disponible
+  const balance = loadBalance()
+  const paid    = loadPaidFixed()
+  const fixed   = (() => {
+    try {
+      const s = localStorage.getItem('hana_fixed_expenses')
+      return s ? JSON.parse(s) : { personal: [], shared: [] }
+    } catch { return { personal: [], shared: [] } }
+  })()
+  const allFixed: { name: string; amount: number }[] = [...(fixed.personal ?? []), ...(fixed.shared ?? [])]
+  const paidAmount  = allFixed.filter(f => paid.has(f.name)).reduce((s, f) => s + f.amount, 0)
+  const availableArs = balance.ars - paidAmount
+
   return (
     <div className="tab-scroll h-full pb-24 px-4 pt-2 space-y-3">
       {/* Header */}
@@ -126,6 +140,39 @@ export function HomeTab({ todayTotal, weekTotal, settings, criptoRate }: Props) 
           {isKo ? date.ko : date.es}
         </p>
       </div>
+
+      {/* 0. Saldo disponible */}
+      {balance.ars > 0 || balance.usd > 0 ? (
+        <div className="card" style={{ background: 'linear-gradient(135deg, #F0FFF8 0%, #FBF5E6 100%)' }}>
+          <p className="text-xs font-semibold mb-2" style={{ color: '#9E8872' }}>
+            💰 {isKo ? '현재 잔액' : 'Saldo disponible'}
+          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-xs" style={{ color: '#9E8872' }}>ARS (DolarApp)</p>
+              <p className="font-black text-xl" style={{
+                fontFamily: 'Inter',
+                color: availableArs >= 0 ? '#1A7A6E' : '#C0392B'
+              }}>
+                ${availableArs.toLocaleString('es-AR')}
+              </p>
+              {paidAmount > 0 && (
+                <p className="text-xs" style={{ color: '#9E8872' }}>
+                  −${paidAmount.toLocaleString('es-AR')} {isKo ? '고정 지출' : 'en fijos pagados'}
+                </p>
+              )}
+            </div>
+            {balance.usd > 0 && (
+              <div className="text-right">
+                <p className="text-xs" style={{ color: '#9E8872' }}>USD (DolarApp)</p>
+                <p className="font-black text-xl" style={{ fontFamily: 'Inter', color: '#1A7A6E' }}>
+                  USD {balance.usd.toLocaleString('es-AR')}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {/* 1. Semáforo */}
       <div className="card" style={{ background: sema.bg }}>
