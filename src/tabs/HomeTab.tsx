@@ -98,21 +98,6 @@ export function HomeTab({ todayTotal, weekTotal, monthTotal, settings, criptoRat
     ? Math.ceil((goal.target - goal.current) / monthlySaving)
     : null
 
-  // Escenario de ahorro
-  const salaryMap = {
-    base:      settings.salary_base_usd,
-    bonus:     settings.salary_bonus_usd,
-    aguinaldo: FINANCIAL_PROFILE.salary_aguinaldo_usd,
-  }
-  const salaryUsd    = salaryMap[scenario]
-  const fixedUsd     = FINANCIAL_PROFILE.usd_subscriptions
-  const cripto       = criptoRate ?? 1200
-  const fixedArsUsd  = totalFixedArs / cripto   // fijos reales convertidos a USD
-  const projSaving   = salaryUsd - fixedUsd - fixedArsUsd
-  const projColor    = projSaving >= settings.monthly_saving_goal_usd ? '#00C47D'
-                      : projSaving >= settings.monthly_saving_goal_usd * 0.8 ? '#F5A623'
-                      : '#E53E3E'
-
   // Quote rotation
   useEffect(() => {
     const id = setInterval(() => setQuoteIdx(i => (i + 1) % MOTIVATIONAL_QUOTES.length), 8000)
@@ -145,6 +130,21 @@ export function HomeTab({ todayTotal, weekTotal, monthTotal, settings, criptoRat
   const monthExpenses = monthTotal > 0 ? monthTotal : 0
   const availableArs  = balance.ars - paidFixedArs - monthExpenses
   const availableUsd  = balance.usd - paidFixedUsd
+
+  // Escenario de ahorro proyectado
+  const salaryMap = {
+    base:      settings.salary_base_usd,
+    bonus:     settings.salary_bonus_usd,
+    aguinaldo: FINANCIAL_PROFILE.salary_aguinaldo_usd,
+  }
+  const salaryUsd   = salaryMap[scenario]
+  const fixedUsd    = FINANCIAL_PROFILE.usd_subscriptions
+  const cripto      = criptoRate ?? 1200
+  const fixedArsUsd = totalFixedArs / cripto
+  const projSaving  = salaryUsd - fixedUsd - fixedArsUsd
+  const projColor   = projSaving >= settings.monthly_saving_goal_usd ? '#00C47D'
+                    : projSaving >= settings.monthly_saving_goal_usd * 0.8 ? '#F5A623'
+                    : '#E53E3E'
 
   return (
     <div className="tab-scroll h-full pb-24 px-4 pt-2 space-y-3">
