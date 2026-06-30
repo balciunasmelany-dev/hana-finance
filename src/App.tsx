@@ -44,7 +44,7 @@ export default function App() {
         <CherryBlossom size={22} />
         <div>
           <h1 className="font-serif font-bold text-lg leading-none" style={{ color: 'white', letterSpacing: '0.02em' }}>
-            {isKo ? '하나' : '하나 Hana'}
+            {isKo ? '하나' : '하나 Hana'} <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>v7</span>
           </h1>
           <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>
             {isKo ? '나의 금융 길' : 'Mi camino financiero'}
