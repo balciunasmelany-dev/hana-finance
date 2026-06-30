@@ -40,6 +40,11 @@ registerRoute(
 
 // ── Push notifications ────────────────────────────────────────────────────────
 
+// Permite que la app fuerce un reload enviando { type: 'SKIP_WAITING' }
+self.addEventListener('message', (event: ExtendableMessageEvent) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
+})
+
 self.addEventListener('push', (event: PushEvent) => {
   let payload = { title: '하나 Hana 🌸', body: '¡Es momento de registrar tus gastos del día!' }
   try {

@@ -5,11 +5,18 @@ import './index.css'
 import App from './App'
 import { registerSW } from 'virtual:pwa-register'
 
-// Recarga automática cuando hay una nueva versión del SW
+// Cuando el SW cambia de versión → recargar la página automáticamente
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload()
+  })
+}
+
 registerSW({
   immediate: true,
   onNeedRefresh() {
-    window.location.reload()
+    // Enviar señal al nuevo SW para que active y dispare controllerchange
+    navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' })
   },
   onOfflineReady() {},
 })
