@@ -92,6 +92,16 @@ function EditableRow({ label, value, onChange, prefix = '', type = 'text' }: {
   )
 }
 
+async function forceUpdate() {
+  if ('serviceWorker' in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations()
+    await Promise.all(regs.map(r => r.unregister()))
+  }
+  const keys = await caches.keys()
+  await Promise.all(keys.map(k => caches.delete(k)))
+  window.location.reload()
+}
+
 export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }: Props) {
   const { t, i18n: i18nHook } = useTranslation()
   const isKo = i18nHook.language === 'ko'
@@ -389,6 +399,18 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
           </button>
         </div>
         {syncMsg && <p className="text-xs mt-2 text-center font-semibold" style={{ color: '#1A7A6E' }}>{syncMsg}</p>}
+        <div style={{ borderTop: '1px solid #F0E8D5', marginTop: 12, paddingTop: 12 }}>
+          <button
+            className="btn-primary w-full"
+            style={{ background: '#8B2318' }}
+            onClick={forceUpdate}
+          >
+            🔄 {isKo ? '앱 강제 업데이트' : 'Forzar actualización de la app'}
+          </button>
+          <p className="text-xs mt-1 text-center" style={{ color: '#9E8872' }}>
+            {isKo ? '캐시를 지우고 최신 버전을 불러옵니다' : 'Limpia el caché y carga la última versión'}
+          </p>
+        </div>
       </div>
 
       {/* Vencimientos */}
