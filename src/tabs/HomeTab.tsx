@@ -4,13 +4,14 @@ import { useExchangeRates } from '../hooks/useExchangeRates'
 import { CherryBlossom } from '../components/CherryBlossomSVG'
 import { MOTIVATIONAL_QUOTES, FINANCIAL_PROFILE } from '../constants/fixedExpenses'
 import type { AppSettings } from '../hooks/useSettings'
-import { loadBalance, loadPaidFixed } from '../lib/balance'
+import { loadBalance, loadPaidFixed, type Balance } from '../lib/balance'
 
 type Props = {
-  todayTotal:  number
-  weekTotal:   number
-  settings:    AppSettings
-  criptoRate:  number | null
+  todayTotal:   number
+  weekTotal:    number
+  monthTotal:   number   // gastos registrados este mes (solo egresos)
+  settings:     AppSettings
+  criptoRate:   number | null
 }
 
 function greeting(name: string) {
@@ -52,13 +53,21 @@ function FlowerBar({ pct }: { pct: number }) {
   )
 }
 
-export function HomeTab({ todayTotal, weekTotal, settings, criptoRate }: Props) {
+export function HomeTab({ todayTotal, weekTotal, monthTotal, settings, criptoRate }: Props) {
   const { t, i18n } = useTranslation()
   const { rates, loading: rLoading } = useExchangeRates()
   const [quoteIdx, setQuoteIdx]     = useState(0)
   const [activeGoal, setActiveGoal] = useState<'korea' | 'greece'>('korea')
   const [scenario, setScenario]     = useState<'base' | 'bonus' | 'aguinaldo'>('base')
   const [semaKey, setSemaKey]       = useState(0)
+  const [balance, setBalance]       = useState<Balance>(loadBalance)
+  const [paid, setPaid]             = useState(loadPaidFixed)
+
+  // Recargar saldo cuando volvés al tab
+  useEffect(() => {
+    setBalance(loadBalance())
+    setPaid(loadPaidFixed())
+  }, [])
 
   const isKo = i18n.language === 'ko'
   const greet = greeting(settings.name)
@@ -98,8 +107,8 @@ export function HomeTab({ todayTotal, weekTotal, settings, criptoRate }: Props) 
   const salaryUsd    = salaryMap[scenario]
   const fixedUsd     = FINANCIAL_PROFILE.usd_subscriptions
   const cripto       = criptoRate ?? 1200
-  const fixedArs     = (3000 + 248500 / cripto) // rough fixed costs in USD equiv
-  const projSaving   = salaryUsd - fixedUsd - fixedArs
+  const fixedArsUsd  = totalFixedArs / cripto   // fijos reales convertidos a USD
+  const projSaving   = salaryUsd - fixedUsd - fixedArsUsd
   const projColor    = projSaving >= settings.monthly_saving_goal_usd ? '#00C47D'
                       : projSaving >= settings.monthly_saving_goal_usd * 0.8 ? '#F5A623'
                       : '#E53E3E'
@@ -113,21 +122,26 @@ export function HomeTab({ todayTotal, weekTotal, settings, criptoRate }: Props) 
   // Re-fade semáforo on change
   useEffect(() => { setSemaKey(k => k + 1) }, [sema.emoji])
 
-  const quote = MOTIVATIONAL_QUOTES[quoteIdx]
+  const quote    = MOTIVATIONAL_QUOTES[quoteIdx]
   const todayUsd = criptoRate ? (todayTotal / criptoRate).toFixed(1) : '–'
 
-  // Saldo real disponible
-  const balance = loadBalance()
-  const paid    = loadPaidFixed()
-  const fixed   = (() => {
+  // Gastos fijos reales desde localStorage
+  const fixedStored = (() => {
     try {
       const s = localStorage.getItem('hana_fixed_expenses')
       return s ? JSON.parse(s) : { personal: [], shared: [] }
     } catch { return { personal: [], shared: [] } }
   })()
-  const allFixed: { name: string; amount: number }[] = [...(fixed.personal ?? []), ...(fixed.shared ?? [])]
-  const paidAmount  = allFixed.filter(f => paid.has(f.name)).reduce((s, f) => s + f.amount, 0)
-  const availableArs = balance.ars - paidAmount
+  const allFixed: { name: string; amount: number }[] = [
+    ...(fixedStored.personal ?? []),
+    ...(fixedStored.shared   ?? []),
+  ]
+  const totalFixedArs = allFixed.reduce((s, f) => s + f.amount, 0)
+  const paidFixedArs  = allFixed.filter(f => paid.has(f.name)).reduce((s, f) => s + f.amount, 0)
+
+  // Saldo ARS disponible = saldo inicial − fijos pagados − gastos registrados este mes
+  const monthExpenses = monthTotal > 0 ? monthTotal : 0
+  const availableArs  = balance.ars - paidFixedArs - monthExpenses
 
   return (
     <div className="tab-scroll h-full pb-24 px-4 pt-2 space-y-3">
@@ -142,7 +156,7 @@ export function HomeTab({ todayTotal, weekTotal, settings, criptoRate }: Props) 
       </div>
 
       {/* 0. Saldo disponible */}
-      {balance.ars > 0 || balance.usd > 0 ? (
+      {balance.ars > 0 || balance.usd > 0 || balance.savings > 0 ? (
         <div className="card" style={{ background: 'linear-gradient(135deg, #F0FFF8 0%, #FBF5E6 100%)' }}>
           <p className="text-xs font-semibold mb-2" style={{ color: '#9E8872' }}>
             💰 {isKo ? '현재 잔액' : 'Saldo disponible'}
@@ -153,9 +167,14 @@ export function HomeTab({ todayTotal, weekTotal, settings, criptoRate }: Props) 
               <p className="font-black text-xl" style={{ fontFamily: 'Inter', color: availableArs >= 0 ? '#1A7A6E' : '#C0392B' }}>
                 ${availableArs.toLocaleString('es-AR')}
               </p>
-              {paidAmount > 0 && (
+              {paidFixedArs > 0 && (
                 <p className="text-xs" style={{ color: '#9E8872' }}>
-                  −${paidAmount.toLocaleString('es-AR')} {isKo ? '납부됨' : 'en fijos pagados'}
+                  −${paidFixedArs.toLocaleString('es-AR')} {isKo ? '고정 납부' : 'fijos pagados'}
+                </p>
+              )}
+              {monthExpenses > 0 && (
+                <p className="text-xs" style={{ color: '#9E8872' }}>
+                  −${monthExpenses.toLocaleString('es-AR')} {isKo ? '이번 달 지출' : 'gastos del mes'}
                 </p>
               )}
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import './i18n'
 import { PetalBackground } from './components/PetalAnimation'
@@ -12,20 +12,10 @@ import { useExpenses }   from './hooks/useExpenses'
 import { useSettings }   from './hooks/useSettings'
 import { useExchangeRates } from './hooks/useExchangeRates'
 import { CherryBlossom } from './components/CherryBlossomSVG'
-import { loadNotifSettings, hasPermission, scheduleDailyCheckin } from './lib/notifications'
-
 type Tab = 'home' | 'expenses' | 'savings' | 'calculator' | 'settings'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home')
-
-  useEffect(() => {
-    // Re-programar notificación diaria si el usuario ya la tenía activa
-    const { daily_checkin } = loadNotifSettings()
-    if (daily_checkin && hasPermission()) {
-      scheduleDailyCheckin('20:00')
-    }
-  }, [])
   const { t, i18n } = useTranslation()
   const isKo = i18n.language === 'ko'
 
@@ -68,6 +58,7 @@ export default function App() {
           <HomeTab
             todayTotal={todayTotal}
             weekTotal={weekTotal}
+            monthTotal={monthTotal}
             settings={settings}
             criptoRate={criptoRate}
           />
