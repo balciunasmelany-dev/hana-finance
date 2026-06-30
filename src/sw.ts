@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+// sw-v3
 import { clientsClaim } from 'workbox-core'
 import { precacheAndRoute } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
@@ -9,6 +10,15 @@ declare const self: ServiceWorkerGlobalScope
 
 clientsClaim()
 self.skipWaiting()
+
+// Navegación: siempre red primero para que index.html se actualice solo
+registerRoute(
+  ({ request }) => request.mode === 'navigate',
+  new NetworkFirst({
+    cacheName: 'pages-v3',
+    plugins: [new ExpirationPlugin({ maxAgeSeconds: 86400 })],
+  })
+)
 
 // Workbox inyecta el manifest aquí
 precacheAndRoute(self.__WB_MANIFEST)
