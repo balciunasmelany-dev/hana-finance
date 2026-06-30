@@ -4,33 +4,38 @@ import i18n from '../i18n'
 import { FINANCIAL_PROFILE } from '../constants/fixedExpenses'
 import { supabase } from '../lib/supabase'
 import type { AppSettings } from '../hooks/useSettings'
-import { loadBalance, saveBalance, loadPaidFixed, markPaid } from '../lib/balance'
+import { loadBalance, saveBalance, loadPaidFixed, markPaid, isPaid } from '../lib/balance'
 
 const FIXED_KEY = 'hana_fixed_expenses'
 
-type FixedItem = { name: string; amount: number; category?: string }
+type FixedItem = { name: string; amount: number; currency: 'ARS' | 'USD'; category?: string }
 
 function loadFixed(): { personal: FixedItem[]; shared: FixedItem[] } {
   try {
     const saved = localStorage.getItem(FIXED_KEY)
-    if (saved) return JSON.parse(saved)
+    if (saved) {
+      const data = JSON.parse(saved)
+      // migrar items sin currency → ARS por defecto
+      const migrate = (arr: FixedItem[]) => arr.map(i => ({ ...i, currency: i.currency ?? 'ARS' }))
+      return { personal: migrate(data.personal), shared: migrate(data.shared) }
+    }
   } catch {}
   return {
     personal: [
-      { name: 'Psicóloga',         amount: 160000, category: 'health'    },
-      { name: 'Carrefour',         amount: 120000, category: 'home'      },
-      { name: 'Verdulería',        amount: 80000,  category: 'food'      },
-      { name: 'Inglés (4 clases)', amount: 72000,  category: 'education' },
-      { name: 'Voley',             amount: 30000,  category: 'health'    },
-      { name: 'Celular Tuenti',    amount: 18000,  category: 'other'     },
-      { name: 'Amazon Prime',      amount: 7863,   category: 'leisure'   },
+      { name: 'Psicóloga',         amount: 160000, currency: 'ARS', category: 'health'    },
+      { name: 'Carrefour',         amount: 120000, currency: 'ARS', category: 'home'      },
+      { name: 'Verdulería',        amount: 80000,  currency: 'ARS', category: 'food'      },
+      { name: 'Inglés (4 clases)', amount: 72000,  currency: 'ARS', category: 'education' },
+      { name: 'Voley',             amount: 30000,  currency: 'ARS', category: 'health'    },
+      { name: 'Celular Tuenti',    amount: 18000,  currency: 'ARS', category: 'other'     },
+      { name: 'Amazon Prime',      amount: 7863,   currency: 'ARS', category: 'leisure'   },
     ],
     shared: [
-      { name: '½ Flow',     amount: 80000  },
-      { name: '½ Alarma',   amount: 70069  },
-      { name: '½ Naturgy',  amount: 48510  },
-      { name: '½ Municipal',amount: 33997  },
-      { name: '½ Edenor',   amount: 15924  },
+      { name: '½ Flow',      amount: 80000, currency: 'ARS' },
+      { name: '½ Alarma',    amount: 70069, currency: 'ARS' },
+      { name: '½ Naturgy',   amount: 48510, currency: 'ARS' },
+      { name: '½ Municipal', amount: 33997, currency: 'ARS' },
+      { name: '½ Edenor',    amount: 15924, currency: 'ARS' },
     ]
   }
 }
@@ -99,7 +104,7 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
   const [balArs, setBalArs]           = useState(String(loadBalance().ars || ''))
   const [balUsd, setBalUsd]           = useState(String(loadBalance().usd || ''))
   const [balSav, setBalSav]           = useState(String(loadBalance().savings || ''))
-  const [paid, setPaid]               = useState(loadPaidFixed)
+  const [paid, setPaid]               = useState(() => loadPaidFixed())
 
   const changeLang = (lang: string) => {
     i18n.changeLanguage(lang)
@@ -265,7 +270,7 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
               </p>
               <button
                 onClick={() => {
-                  const next = { ...fixed, [section]: [...fixed[section], { name: 'Nuevo', amount: 0 }] }
+                  const next = { ...fixed, [section]: [...fixed[section], { name: 'Nuevo', amount: 0, currency: 'ARS' as const }] }
                   setFixed(next); saveFixed(next)
                   setEditingFixed({ section, idx: fixed[section].length })
                 }}
@@ -273,74 +278,93 @@ export function SettingsTab({ settings, onUpdate, manualRate, updateManualRate }
               >+</button>
             </div>
             {fixed[section].map((e, idx) => (
-              <div key={idx} className="flex items-center gap-2 py-1.5" style={{ borderBottom: '1px solid #F0E8D5' }}>
+              <div key={idx} className="py-1.5" style={{ borderBottom: '1px solid #F0E8D5' }}>
                 {editingFixed?.section === section && editingFixed.idx === idx ? (
-                  <>
-                    <input
-                      className="hana-input text-sm"
-                      style={{ flex: 1, padding: '0.3rem 0.5rem' }}
-                      value={e.name}
-                      onChange={ev => {
-                        const next = { ...fixed }
-                        next[section] = fixed[section].map((x, i) => i === idx ? { ...x, name: ev.target.value } : x)
-                        setFixed(next)
-                      }}
-                    />
-                    <input
-                      className="hana-input text-sm"
-                      style={{ width: 90, padding: '0.3rem 0.5rem', fontFamily: 'Inter' }}
-                      type="number"
-                      value={e.amount}
-                      onChange={ev => {
-                        const next = { ...fixed }
-                        next[section] = fixed[section].map((x, i) => i === idx ? { ...x, amount: Number(ev.target.value) } : x)
-                        setFixed(next)
-                      }}
-                    />
-                    <button
-                      onClick={() => { saveFixed(fixed); setEditingFixed(null) }}
-                      style={{ background: 'none', border: 'none', color: '#1A7A6E', cursor: 'pointer', fontWeight: 700 }}
-                    >✓</button>
-                  </>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2 items-center">
+                      <input
+                        className="hana-input text-sm"
+                        style={{ flex: 1, padding: '0.3rem 0.5rem' }}
+                        placeholder="Nombre"
+                        value={e.name}
+                        onChange={ev => {
+                          const next = { ...fixed }
+                          next[section] = fixed[section].map((x, i) => i === idx ? { ...x, name: ev.target.value } : x)
+                          setFixed(next)
+                        }}
+                      />
+                      {/* Toggle ARS / USD */}
+                      <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid #E0D8CC', flexShrink: 0 }}>
+                        {(['ARS','USD'] as const).map(cur => (
+                          <button key={cur}
+                            onClick={() => {
+                              const next = { ...fixed }
+                              next[section] = fixed[section].map((x, i) => i === idx ? { ...x, currency: cur } : x)
+                              setFixed(next)
+                            }}
+                            style={{
+                              padding: '4px 10px', fontSize: '0.72rem', fontWeight: 700, border: 'none', cursor: 'pointer',
+                              background: e.currency === cur ? '#1A7A6E' : '#F0E8D5',
+                              color: e.currency === cur ? 'white' : '#9E8872',
+                            }}
+                          >{cur}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        className="hana-input text-sm"
+                        style={{ flex: 1, padding: '0.3rem 0.5rem', fontFamily: 'Inter' }}
+                        type="number"
+                        placeholder="Monto"
+                        value={e.amount}
+                        onChange={ev => {
+                          const next = { ...fixed }
+                          next[section] = fixed[section].map((x, i) => i === idx ? { ...x, amount: Number(ev.target.value) } : x)
+                          setFixed(next)
+                        }}
+                      />
+                      <button
+                        onClick={() => { saveFixed(fixed); setEditingFixed(null) }}
+                        style={{ background: '#1A7A6E', border: 'none', color: 'white', borderRadius: 10, padding: '4px 14px', cursor: 'pointer', fontWeight: 700 }}
+                      >✓</button>
+                    </div>
+                  </div>
                 ) : (
-                  <>
-                    <span className="text-sm flex-1" style={{ color: '#5C4A3A' }}>{e.name}</span>
-                    <span className="text-xs font-semibold mr-1" style={{ fontFamily: 'Inter', color: '#9E8872' }}>
-                      ${e.amount.toLocaleString('es-AR')}
-                    </span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm" style={{ color: '#5C4A3A' }}>{e.name}</span>
+                      <span className="text-xs ml-2 font-semibold" style={{ fontFamily: 'Inter', color: '#9E8872' }}>
+                        {e.currency === 'USD' ? 'USD ' : '$'}{e.amount.toLocaleString('es-AR')}
+                      </span>
+                    </div>
                     {/* Botón Pagar / Pagado */}
                     <button
                       onClick={() => {
-                        const isPaid = paid.has(e.name)
-                        const next = markPaid(e.name, !isPaid)
-                        setPaid(new Set(next))
+                        const alreadyPaid = isPaid(paid, e.name)
+                        const next = markPaid(e.name, alreadyPaid ? null : e.currency)
+                        setPaid({ ...next })
                       }}
                       style={{
-                        border: 'none',
-                        borderRadius: 10,
-                        padding: '3px 10px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        background: paid.has(e.name) ? '#00C47D' : '#C0392B',
+                        border: 'none', borderRadius: 10, padding: '3px 10px',
+                        fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                        background: isPaid(paid, e.name) ? '#00C47D' : '#C0392B',
                         color: 'white',
-                        flexShrink: 0,
                       }}
                     >
-                      {paid.has(e.name) ? (isKo ? '납부 ✓' : 'Pagado ✓') : (isKo ? '납부' : 'Pagar')}
+                      {isPaid(paid, e.name) ? '✓ Pagado' : 'Pagar'}
                     </button>
-                    <button
-                      onClick={() => setEditingFixed({ section, idx })}
-                      style={{ background: 'none', border: 'none', color: '#9E8872', cursor: 'pointer', fontSize: '0.8rem' }}
+                    <button onClick={() => setEditingFixed({ section, idx })}
+                      style={{ background: 'none', border: 'none', color: '#9E8872', cursor: 'pointer', fontSize: '0.8rem', flexShrink: 0 }}
                     >✏️</button>
                     <button
                       onClick={() => {
                         const next = { ...fixed, [section]: fixed[section].filter((_, i) => i !== idx) }
                         setFixed(next); saveFixed(next)
                       }}
-                      style={{ background: 'none', border: 'none', color: '#E8899A', cursor: 'pointer', fontSize: '0.8rem' }}
+                      style={{ background: 'none', border: 'none', color: '#E8899A', cursor: 'pointer', fontSize: '0.8rem', flexShrink: 0 }}
                     >✕</button>
-                  </>
+                  </div>
                 )}
               </div>
             ))}

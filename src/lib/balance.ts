@@ -22,24 +22,30 @@ export function saveBalance(b: Balance) {
   localStorage.setItem(BALANCE_KEY, JSON.stringify({ ...b, updatedAt: new Date().toISOString() }))
 }
 
-// Pagos de fijos: key = "YYYY-MM:nombre"
+// Pagos de fijos: guardamos { name → currency } para saber de dónde descontar
 function paidKey(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
-export function loadPaidFixed(): Set<string> {
+export type PaidMap = Record<string, 'ARS' | 'USD'>  // name → moneda pagada
+
+export function loadPaidFixed(): PaidMap {
   try {
     const s = localStorage.getItem(`${PAID_KEY}:${paidKey()}`)
-    if (s) return new Set(JSON.parse(s))
+    if (s) return JSON.parse(s)
   } catch {}
-  return new Set()
+  return {}
 }
 
-export function markPaid(name: string, paid: boolean): Set<string> {
+export function markPaid(name: string, currency: 'ARS' | 'USD' | null): PaidMap {
   const current = loadPaidFixed()
-  if (paid) current.add(name)
-  else current.delete(name)
-  localStorage.setItem(`${PAID_KEY}:${paidKey()}`, JSON.stringify([...current]))
+  if (currency) current[name] = currency
+  else delete current[name]
+  localStorage.setItem(`${PAID_KEY}:${paidKey()}`, JSON.stringify(current))
   return current
+}
+
+export function isPaid(paid: PaidMap, name: string): boolean {
+  return name in paid
 }

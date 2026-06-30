@@ -4,7 +4,7 @@ import { useExchangeRates } from '../hooks/useExchangeRates'
 import { CherryBlossom } from '../components/CherryBlossomSVG'
 import { MOTIVATIONAL_QUOTES, FINANCIAL_PROFILE } from '../constants/fixedExpenses'
 import type { AppSettings } from '../hooks/useSettings'
-import { loadBalance, loadPaidFixed, type Balance } from '../lib/balance'
+import { loadBalance, loadPaidFixed, isPaid, type Balance, type PaidMap } from '../lib/balance'
 
 type Props = {
   todayTotal:   number
@@ -61,7 +61,7 @@ export function HomeTab({ todayTotal, weekTotal, monthTotal, settings, criptoRat
   const [scenario, setScenario]     = useState<'base' | 'bonus' | 'aguinaldo'>('base')
   const [semaKey, setSemaKey]       = useState(0)
   const [balance, setBalance]       = useState<Balance>(loadBalance)
-  const [paid, setPaid]             = useState(loadPaidFixed)
+  const [paid, setPaid]             = useState<PaidMap>(loadPaidFixed)
 
   // Recargar saldo cuando volvés al tab
   useEffect(() => {
@@ -132,16 +132,19 @@ export function HomeTab({ todayTotal, weekTotal, monthTotal, settings, criptoRat
       return s ? JSON.parse(s) : { personal: [], shared: [] }
     } catch { return { personal: [], shared: [] } }
   })()
-  const allFixed: { name: string; amount: number }[] = [
+  const allFixed: { name: string; amount: number; currency: 'ARS' | 'USD' }[] = [
     ...(fixedStored.personal ?? []),
     ...(fixedStored.shared   ?? []),
-  ]
-  const totalFixedArs = allFixed.reduce((s, f) => s + f.amount, 0)
-  const paidFixedArs  = allFixed.filter(f => paid.has(f.name)).reduce((s, f) => s + f.amount, 0)
+  ].map(f => ({ ...f, currency: f.currency ?? 'ARS' }))
 
-  // Saldo ARS disponible = saldo inicial − fijos pagados − gastos registrados este mes
+  const totalFixedArs = allFixed.filter(f => f.currency === 'ARS').reduce((s, f) => s + f.amount, 0)
+  const paidFixedArs  = allFixed.filter(f => isPaid(paid, f.name) && f.currency === 'ARS').reduce((s, f) => s + f.amount, 0)
+  const paidFixedUsd  = allFixed.filter(f => isPaid(paid, f.name) && f.currency === 'USD').reduce((s, f) => s + f.amount, 0)
+
+  // Saldo disponible = saldo inicial − fijos pagados − gastos registrados
   const monthExpenses = monthTotal > 0 ? monthTotal : 0
   const availableArs  = balance.ars - paidFixedArs - monthExpenses
+  const availableUsd  = balance.usd - paidFixedUsd
 
   return (
     <div className="tab-scroll h-full pb-24 px-4 pt-2 space-y-3">
@@ -181,9 +184,12 @@ export function HomeTab({ todayTotal, weekTotal, monthTotal, settings, criptoRat
             {balance.usd > 0 && (
               <div className="text-right">
                 <p className="text-xs" style={{ color: '#9E8872' }}>{isKo ? 'USD 가용' : 'USD disponible'}</p>
-                <p className="font-black text-xl" style={{ fontFamily: 'Inter', color: '#1A7A6E' }}>
-                  USD {balance.usd.toLocaleString()}
+                <p className="font-black text-xl" style={{ fontFamily: 'Inter', color: availableUsd >= 0 ? '#1A7A6E' : '#C0392B' }}>
+                  USD {availableUsd.toLocaleString()}
                 </p>
+                {paidFixedUsd > 0 && (
+                  <p className="text-xs" style={{ color: '#9E8872' }}>−USD {paidFixedUsd.toLocaleString()} fijos</p>
+                )}
               </div>
             )}
           </div>
